@@ -1,0 +1,6 @@
+venv_codebase/
+__pycache__/
+*.pyc
+data/
+*.pth
+.env

@@ -1,0 +1,9 @@
+ipykernel
+
+GitPython
+pathlib
+python-dotenv
+networkx
+chromadb 
+sentence-transformers
+groq
