@@ -19,50 +19,59 @@ class HybridRetriever:
             k=5
     ):
 
-        query_embedding = self.embedder.embed(query).tolist()
+        query_embedding = (
+            self.embedder.embed(query).tolist()
+        )
 
         results = self.vector_store.search(
             query_embedding,
             k
         )
 
-        seeds = results["ids"][0]
+        ids = results["ids"][0]
+        distances = results["distances"][0]
 
-        final_results = []
+        ranked = []
 
-        # --------------------------------------------------
-        # 1. Direct semantic matches first
-        # --------------------------------------------------
+        for node_id, score in zip(ids, distances):
 
-        for node in seeds:
+            ranked.append(
+                {
+                    "id": node_id,
+                    "score": score,
+                    "source": "semantic"
+                }
+            )
 
-            if node not in final_results:
-                final_results.append(node)
+        existing = {
+            item["id"]
+            for item in ranked
+        }
 
-        # --------------------------------------------------
-        # 2. Add callers
-        # --------------------------------------------------
+        for node in ids:
 
-        for node in seeds:
+            callers = (
+                self.analyzer.who_calls(node)
+            )
 
-            callers = self.analyzer.who_calls(node)
+            callees = (
+                self.analyzer.what_does_it_call(node)
+            )
 
-            for caller in callers:
+            neighbors = callers + callees
 
-                if caller not in final_results:
-                    final_results.append(caller)
+            for neighbor in neighbors:
 
-        # --------------------------------------------------
-        # 3. Add callees
-        # --------------------------------------------------
+                if neighbor not in existing:
 
-        for node in seeds:
+                    ranked.append(
+                        {
+                            "id": neighbor,
+                            "score": 999,
+                            "source": "graph"
+                        }
+                    )
 
-            callees = self.analyzer.what_does_it_call(node)
+                    existing.add(neighbor)
 
-            for callee in callees:
-
-                if callee not in final_results:
-                    final_results.append(callee)
-
-        return final_results
+        return ranked

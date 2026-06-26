@@ -27,6 +27,7 @@ def main():
     loader = GitHubLoader(REPO_DIR)
 
     repo_path = loader.clone_repo(github_url)
+    repo_name = repo_path.name
 
     py_files = loader.get_python_files(repo_path)
 
@@ -69,22 +70,28 @@ def main():
 
     print(f"\nChunks Created: {len(chunks)}")
 
-    # --------------------------------------------------
-    # Embeddings + Vector DB
-    # --------------------------------------------------
+   # --------------------------------------------------
+   # Embeddings + Vector DB
+   # --------------------------------------------------
 
     embedder = Embedder()
 
-    store = VectorStore()
+    store = VectorStore(repo_name)
 
     ids = []
     documents = []
     metadatas = []
     embeddings = []
 
-    print("\nGenerating embeddings...")
+    new_docs = 0
+
+    print("\nChecking embeddings...")
 
     for chunk in chunks:
+
+        # Skip if already indexed
+        if store.document_exists(chunk["id"]):
+            continue
 
         ids.append(chunk["id"])
 
@@ -100,14 +107,25 @@ def main():
             embedder.embed(chunk["text"]).tolist()
         )
 
-    store.add_documents(
-        ids=ids,
-        documents=documents,
-        metadatas=metadatas,
-        embeddings=embeddings
-    )
+        new_docs += 1
 
-    print("Embeddings stored successfully.")
+    if ids:
+
+        print(f"Generating {new_docs} new embeddings...")
+
+        store.add_documents(
+            ids=ids,
+            documents=documents,
+            metadatas=metadatas,
+            embeddings=embeddings
+        )
+
+        print("New embeddings stored successfully.")
+
+    else:
+
+        print("Repository already indexed.")
+        print("New embeddings added: 0")
 
     # --------------------------------------------------
     # Hybrid Retriever

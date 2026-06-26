@@ -11,44 +11,85 @@ class AnswerGenerator:
         self.repo_index = repo_index
         self.llm = llm
 
+        # -----------------------------------
+        # Fast lookup table
+        # -----------------------------------
+
+        self.node_lookup = {}
+
+        for func in repo_index["functions"]:
+            self.node_lookup[func["id"]] = func
+
+        for cls in repo_index["classes"]:
+
+            self.node_lookup[cls["id"]] = cls
+
+            for method in cls["methods"]:
+                self.node_lookup[method["id"]] = method
+
     def get_chunk_text(
             self,
             node_id
     ):
 
-        for func in self.repo_index["functions"]:
+        node = self.node_lookup.get(node_id)
 
-            if func["id"] == node_id:
-                return func["source_code"]
+        if not node:
+            return ""
 
-        for cls in self.repo_index["classes"]:
-
-            if cls["id"] == node_id:
-                return cls["source_code"]
-
-            for method in cls["methods"]:
-
-                if method["id"] == node_id:
-                    return method["source_code"]
-
-        return ""
+        return node.get(
+            "source_code",
+            ""
+        )
 
     def answer(
             self,
             query
     ):
 
-        nodes = self.retriever.retrieve(query)
+        retrieved_nodes = self.retriever.retrieve(
+            query
+        )
+
+        # -----------------------------------
+        # Better Context Assembly
+        # -----------------------------------
+
+        semantic_nodes = [
+            n for n in retrieved_nodes
+            if n["source"] == "semantic"
+        ][:4]
+
+        graph_nodes = [
+            n for n in retrieved_nodes
+            if n["source"] == "graph"
+        ][:4]
+
+        final_nodes = (
+            semantic_nodes +
+            graph_nodes
+        )
 
         context = []
 
-        for node in nodes[:8]:
+        citations = []
 
-            code = self.get_chunk_text(node)
+        for node in final_nodes:
+
+            node_id = node["id"]
+
+            citations.append(node_id)
+
+            code = self.get_chunk_text(
+                node_id
+            )
 
             context.append(
                 f"""
-ID: {node}
+ID: {node_id}
+
+SOURCE:
+{node['source']}
 
 CODE:
 {code}
@@ -56,21 +97,67 @@ CODE:
             )
 
         prompt = f"""
-You are a senior software engineer.
+You are an expert software engineer performing codebase analysis.
 
-Answer the question using only the provided code context.
+Use ONLY the provided code context.
+Semantic results are highly relevant.
+Graph results are related dependencies.
 
-QUESTION:
+If the answer cannot be determined from the context,
+say so explicitly.
+
+QUESTION
+
 {query}
 
-CONTEXT:
+CODE CONTEXT
+
 {chr(10).join(context)}
 
-Provide:
+Instructions:
 
-1. Direct answer
-2. Relevant files/functions
-3. Short explanation
+- Explain how the code actually works.
+- Reference specific functions, methods, classes and files.
+- Use code evidence whenever possible.
+- Do not invent behavior not present in the code.
+- Prefer concrete explanations over generic descriptions.
+
+Special Rules:
+
+For architecture questions:
+- identify entry points
+- identify major components
+- identify data flow
+- identify dependencies
+- identify training and inference pipelines if present
+
+For implementation questions:
+- explain control flow
+- explain function interactions
+- explain important classes and methods
+
+Output Format:
+
+# Answer
+
+<single detailed explanation>
+
+# Relevant Code
+
+- file.py::function
+- file.py::Class.method
+
+# Code Flow
+
+<if applicable>
+
+# Confidence
+
+High / Medium / Low
 """
 
-        return self.llm.generate(prompt)
+        answer = self.llm.generate(
+            prompt
+        )
+
+        return answer
