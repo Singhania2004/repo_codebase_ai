@@ -5,13 +5,15 @@ class HybridRetriever:
             graph,
             analyzer,
             embedder,
-            vector_store
+            vector_store,
+            llm
     ):
 
         self.graph = graph
         self.analyzer = analyzer
         self.embedder = embedder
         self.vector_store = vector_store
+        self.llm = llm
 
     def retrieve(
             self,
@@ -19,8 +21,23 @@ class HybridRetriever:
             k=5
     ):
 
+        rewritten = self.llm.rewrite_query(query)
+
+        search_query = f"""
+        Question:
+        {query}
+
+        Related concepts:
+        {rewritten}
+        """
+
+        print("\nSearch Query:")
+        print(search_query)
+
         query_embedding = (
-            self.embedder.embed(query).tolist()
+            self.embedder.embed(
+                search_query
+            ).tolist()
         )
 
         results = self.vector_store.search(
@@ -30,16 +47,22 @@ class HybridRetriever:
 
         ids = results["ids"][0]
         distances = results["distances"][0]
+        documents = results["documents"][0]
 
         ranked = []
 
-        for node_id, score in zip(ids, distances):
+        for node_id, score, document in zip(
+                ids,
+                distances,
+                documents
+        ):
 
             ranked.append(
                 {
                     "id": node_id,
                     "score": score,
-                    "source": "semantic"
+                    "source": "semantic",
+                    "document": document
                 }
             )
 
@@ -68,7 +91,8 @@ class HybridRetriever:
                         {
                             "id": neighbor,
                             "score": 999,
-                            "source": "graph"
+                            "source": "graph",
+                            "document": None
                         }
                     )
 

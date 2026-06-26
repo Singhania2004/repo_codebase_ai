@@ -131,18 +131,19 @@ def main():
     # Hybrid Retriever
     # --------------------------------------------------
 
+    llm = LLM()
+
     retriever = HybridRetriever(
         graph=graph,
         analyzer=analyzer,
         embedder=embedder,
-        vector_store=store
+        vector_store=store,
+        llm=llm
     )
 
     # --------------------------------------------------
     # LLM + Answer Generator
     # --------------------------------------------------
-
-    llm = LLM()
 
     generator = AnswerGenerator(
         retriever=retriever,

@@ -37,10 +37,36 @@ class AnswerGenerator:
         if not node:
             return ""
 
-        return node.get(
-            "source_code",
-            ""
-        )
+        # ---------- methods ----------
+        if "args" in node:
+
+            parent = node_id.split("::")[0]
+
+            return f"""
+File: {parent}
+
+Name: {node['name']}
+
+Arguments:
+{node.get('args', '')}
+
+Docstring:
+{node.get('docstring', '')}
+
+Code:
+{node.get('source_code', '')}
+"""
+
+        # ---------- classes ----------
+        return f"""
+Name: {node.get('name', '')}
+
+Docstring:
+{node.get('docstring', '')}
+
+Code:
+{node.get('source_code', '')}
+"""
 
     def answer(
             self,
@@ -50,10 +76,6 @@ class AnswerGenerator:
         retrieved_nodes = self.retriever.retrieve(
             query
         )
-
-        # -----------------------------------
-        # Better Context Assembly
-        # -----------------------------------
 
         semantic_nodes = [
             n for n in retrieved_nodes
@@ -72,17 +94,21 @@ class AnswerGenerator:
 
         context = []
 
-        citations = []
-
         for node in final_nodes:
 
             node_id = node["id"]
 
-            citations.append(node_id)
+            # Semantic results use Chroma documents
+            if node["source"] == "semantic":
 
-            code = self.get_chunk_text(
-                node_id
-            )
+                code = node["document"]
+
+            # Graph neighbors use lookup
+            else:
+
+                code = self.get_chunk_text(
+                    node_id
+                )
 
             context.append(
                 f"""
@@ -91,7 +117,7 @@ ID: {node_id}
 SOURCE:
 {node['source']}
 
-CODE:
+CONTENT:
 {code}
 """
             )
@@ -100,6 +126,7 @@ CODE:
 You are an expert software engineer performing codebase analysis.
 
 Use ONLY the provided code context.
+
 Semantic results are highly relevant.
 Graph results are related dependencies.
 
