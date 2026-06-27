@@ -21,6 +21,12 @@ The project ships both a terminal interface (`app.py`) and a **Streamlit web app
 
 ---
 
+## 🌐 Live Demo
+
+https://repocodebaseai.streamlit.app/
+
+---
+
 ## ✨ Key Features
 
 - **GitHub-first workflow**: Paste any public repo URL — CodeLens clones, parses, and indexes it automatically.
